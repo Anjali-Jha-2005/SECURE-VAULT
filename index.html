@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Security File Locker</title>
+  <link rel="stylesheet" href="style.css">
+   <link rel="stylesheet" href="start.css">
+
+</head>
+<body>
+  <div class="locker">
+    <h2>🔐 File Locker</h2>
+    <input type="password" id="password" placeholder="Enter password">
+    <button onclick="unlockLocker()">Unlock</button>
+
+    <div id="lockerContent" style="display:none;">
+      <input type="file" id="fileInput">
+      <button onclick="addFile()">Add File</button>
+      <ul id="fileList"></ul>
+      <button onclick="lockLocker()">Lock</button>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>

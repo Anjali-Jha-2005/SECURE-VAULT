@@ -1,0 +1,135 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("postgresql://securevault:SecureAI2026@localhost:5432/securevault?schema=public")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum AuditOutcome {
+  SUCCESS
+  FAILURE
+  DENIED
+}
+
+enum Severity {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum FileStatus {
+  ACTIVE
+  DELETED
+}
+
+enum StorageProvider {
+  LOCAL
+  S3
+}
+
+model User {
+  id               String         @id @default(uuid()) @db.Uuid
+  name             String
+  email            String         @unique
+  passwordHash     String
+  role             Role           @default(USER)
+  status           UserStatus     @default(ACTIVE)
+  failedLoginCount Int            @default(0)
+  lockedUntil      DateTime?
+  lastLoginAt      DateTime?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  refreshTokens    RefreshToken[]
+  files            FileMetadata[]
+  auditLogs        AuditLog[]
+  securityEvents   SecurityEvent[]
+}
+
+/// Refresh tokens double as "sessions". Only a SHA-256 hash of the token is stored.
+model RefreshToken {
+  id                String    @id @default(uuid()) @db.Uuid
+  userId            String    @db.Uuid
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash         String    @unique
+  familyId          String    @db.Uuid
+  expiresAt         DateTime
+  absoluteExpiresAt DateTime
+  revokedAt         DateTime?
+  replacedById      String?   @db.Uuid
+  userAgent         String?
+  ip                String?
+  createdAt         DateTime  @default(now())
+
+  @@index([userId])
+  @@index([familyId])
+}
+
+model FileMetadata {
+  id                  String          @id @default(uuid()) @db.Uuid
+  ownerId             String          @db.Uuid
+  owner               User            @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  displayName         String
+  storageKey          String          @unique
+  sizeBytes           Int
+  encryptionAlgorithm String          @default("AES-256-GCM")
+  nonce               String
+  authTag             String
+  sha256              String
+  keyRef              String
+  wrappedDataKey      String?
+  storageProvider     StorageProvider
+  status              FileStatus      @default(ACTIVE)
+  uploadedAt          DateTime        @default(now())
+  deletedAt           DateTime?
+
+  @@index([ownerId, status])
+}
+
+/// Append-only by convention: no API endpoint updates or deletes rows.
+model AuditLog {
+  id        String       @id @default(uuid()) @db.Uuid
+  createdAt DateTime     @default(now())
+  category  String
+  action    String
+  outcome   AuditOutcome
+  userId    String?      @db.Uuid
+  user      User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  requestId String?
+  ip        String?
+  userAgent String?
+  metadata  Json?
+
+  @@index([createdAt])
+  @@index([userId, createdAt])
+  @@index([category, action])
+}
+
+/// Created only by implemented detection rules (see ruleId).
+model SecurityEvent {
+  id          String   @id @default(uuid()) @db.Uuid
+  createdAt   DateTime @default(now())
+  ruleId      String
+  type        String
+  severity    Severity
+  userId      String?  @db.Uuid
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  requestId   String?
+  ip          String?
+  description String
+  metadata    Json?
+
+  @@index([createdAt])
+  @@index([ruleId])
+}
